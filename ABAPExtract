@@ -1,0 +1,47 @@
+REPORT z_bw_object_inventory.
+
+TABLES: rsdso, rsdciobj, rsddcube, usr02.
+
+DATA: lt_infoobjects  TYPE TABLE OF rsdciobj,
+      lt_infocubes    TYPE TABLE OF rsddcube,
+      lt_dsos         TYPE TABLE OF rsdso,
+      lt_users        TYPE TABLE OF usr02.
+
+DATA: lv_user_count   TYPE I.
+
+START-OF-SELECTION.
+
+* Retrieve InfoObjects
+  SELECT * 
+    INTO TABLE lt_infoobjects
+    FROM rsdciobj
+    WHERE objvers = 'A'.  "Active objects only
+
+* Retrieve InfoCubes
+  SELECT * 
+    INTO TABLE lt_infocubes
+    FROM rsddcube
+    WHERE objvers = 'A'.  "Active objects only
+
+* Retrieve DSOs
+  SELECT * 
+    INTO TABLE lt_dsos
+    FROM rsdso
+    WHERE objvers = 'A'.  "Active objects only
+
+* Retrieve User Details
+  SELECT * 
+    INTO TABLE lt_users
+    FROM usr02
+    WHERE mandt = sy-mandt.
+
+* Count Users
+  lv_user_count = LINES( lt_users ).
+
+* Output results
+  WRITE: / 'BW Object Inventory Report'.
+  WRITE: / '---------------------------------'.
+  WRITE: / 'InfoObjects:', LINES( lt_infoobjects ).
+  WRITE: / 'InfoCubes:', LINES( lt_infocubes ).
+  WRITE: / 'DSOs:', LINES( lt_dsos ).
+  WRITE: / 'Active Users:', lv_user_count.
