@@ -1,0 +1,88 @@
+REPORT z_bw_initial_assessment.
+
+TABLES: rsdciobj, rsddcube, rsdso, usr02, agr_users.
+
+DATA: lt_infoobjects     TYPE TABLE OF rsdciobj,
+      lt_infocubes       TYPE TABLE OF rsddcube,
+      lt_dsos            TYPE TABLE OF rsdso,
+      lt_active_users    TYPE TABLE OF usr02,
+      lt_role_assignments TYPE TABLE OF agr_users.
+
+DATA: lv_infoobject_count TYPE I,
+      lv_infocube_count   TYPE I,
+      lv_dso_count        TYPE I,
+      lv_active_user_count TYPE I.
+
+START-OF-SELECTION.
+
+"--- Step 1: Retrieve Metadata for Inventory ---"
+
+"Retrieve InfoObjects"
+SELECT * 
+  INTO TABLE lt_infoobjects
+  FROM rsdciobj
+  WHERE objvers = 'A'.  "Active objects only
+
+"Retrieve InfoCubes"
+SELECT * 
+  INTO TABLE lt_infocubes
+  FROM rsddcube
+  WHERE objvers = 'A'.  "Active objects only
+
+"Retrieve DSOs"
+SELECT * 
+  INTO TABLE lt_dsos
+  FROM rsdso
+  WHERE objvers = 'A'.  "Active objects only
+
+"Count objects"
+lv_infoobject_count = LINES( lt_infoobjects ).
+lv_infocube_count = LINES( lt_infocubes ).
+lv_dso_count = LINES( lt_dsos ).
+
+"--- Step 2: Analyze User Activity ---"
+
+"Retrieve Active Users"
+SELECT * 
+  INTO TABLE lt_active_users
+  FROM usr02
+  WHERE uflag = '0' AND mandt = sy-mandt. "Active users in current client
+
+"Count active users"
+lv_active_user_count = LINES( lt_active_users ).
+
+"--- Step 3: Retrieve Security Roles and Assignments ---"
+
+"Retrieve User-Role Assignments"
+SELECT * 
+  INTO TABLE lt_role_assignments
+  FROM agr_users
+  WHERE mandt = sy-mandt.
+
+"--- Step 4: Output Results ---"
+
+WRITE: / 'SAP BW Assessment Report'.
+WRITE: / '----------------------------------'.
+WRITE: / 'Inventory Summary:'.
+WRITE: / 'InfoObjects:', lv_infoobject_count.
+WRITE: / 'InfoCubes:', lv_infocube_count.
+WRITE: / 'DSOs:', lv_dso_count.
+WRITE: / '----------------------------------'.
+WRITE: / 'Active Users:', lv_active_user_count.
+WRITE: / '----------------------------------'.
+WRITE: / 'Security Roles:', LINES( lt_role_assignments ).
+
+"--- Optional: Export to Flat File ---"
+
+DATA: lv_filename TYPE string VALUE '/path/to/assessment_report.csv',
+      lv_sep TYPE c VALUE ','.
+
+OPEN DATASET lv_filename FOR OUTPUT IN TEXT MODE ENCODING DEFAULT.
+TRANSFER 'Category,Object_Count' TO lv_filename.
+TRANSFER 'InfoObjects,' && lv_infoobject_count TO lv_filename.
+TRANSFER 'InfoCubes,' && lv_infocube_count TO lv_filename.
+TRANSFER 'DSOs,' && lv_dso_count TO lv_filename.
+TRANSFER 'Active_Users,' && lv_active_user_count TO lv_filename.
+CLOSE DATASET lv_filename.
+
+WRITE: / 'Report exported to', lv_filename.
