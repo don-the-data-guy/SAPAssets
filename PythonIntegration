@@ -1,0 +1,56 @@
+pip install pyspark delta-spark
+
+from pyspark.sql import SparkSession
+from delta.tables import DeltaTable
+
+# Initialize SparkSession
+spark = SparkSession.builder \
+    .appName("SAP BW to Databricks Migration") \
+    .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension") \
+    .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog") \
+    .getOrCreate()
+
+# JDBC Configurations
+jdbc_url = "jdbc:sap://<hostname>:<port>/"
+jdbc_properties = {
+    "user": "<username>",
+    "password": "<password>",
+    "driver": "com.sap.db.jdbc.Driver"
+}
+source_table = "SAPBW.TableName"  # Replace with actual BW table
+delta_table_path = "/mnt/delta/sap_bw_table"
+
+# Step 1: Extract Data from SAP BW
+print("Extracting data from SAP BW...")
+bw_data = spark.read.format("jdbc") \
+    .option("url", jdbc_url) \
+    .option("dbtable", source_table) \
+    .option("user", jdbc_properties["user"]) \
+    .option("password", jdbc_properties["password"]) \
+    .option("driver", jdbc_properties["driver"]) \
+    .load()
+
+# Step 2: Transform Data (Example: Remove Nulls, Format Columns)
+print("Transforming data...")
+transformed_data = bw_data.na.fill({"ColumnName": "DefaultValue"})  # Example transformation
+transformed_data = transformed_data.withColumnRenamed("OldColumn", "NewColumn")
+
+# Step 3: Write Data to Delta Table
+print(f"Writing data to Delta Table at {delta_table_path}...")
+transformed_data.write.format("delta").mode("overwrite").save(delta_table_path)
+
+# Step 4: Create Delta Table in Databricks (if not exists)
+if not DeltaTable.isDeltaTable(spark, delta_table_path):
+    print("Creating Delta Table...")
+    spark.sql(f"""
+        CREATE TABLE sap_bw_table
+        USING DELTA
+        LOCATION '{delta_table_path}'
+    """)
+
+# Step 5: Verify Data
+print("Verifying Delta Table data...")
+delta_data = spark.read.format("delta").load(delta_table_path)
+delta_data.show()
+
+print("Migration complete!")
