@@ -1,0 +1,82 @@
+import pandas as pd
+
+# Constants
+MAPPING_FILE = "/path/to/mapping_file.csv"
+OUTPUT_SQL_PATH = "/path/to/output/delta_table_scripts.sql"
+OUTPUT_PYSPARK_PATH = "/path/to/output/pyspark_scripts.py"
+
+def read_mapping_file(mapping_file):
+    """
+    Read the mapping file containing object mappings and schema definitions.
+    """
+    return pd.read_csv(mapping_file)
+
+def generate_delta_table_scripts(mapping_df, output_sql_path):
+    """
+    Generate SQL scripts to create Delta Tables.
+    """
+    sql_scripts = []
+    for _, row in mapping_df.iterrows():
+        table_name = row["Databricks_Table"]
+        columns = row["Columns"]  # Expected as "col1 TYPE, col2 TYPE"
+        
+        # Create SQL script
+        sql_script = f"""
+        CREATE TABLE IF NOT EXISTS {table_name} (
+            {columns}
+        )
+        USING DELTA;
+        """
+        sql_scripts.append(sql_script)
+    
+    # Save to file
+    with open(output_sql_path, "w") as f:
+        f.write("\n".join(sql_scripts))
+    print(f"Delta Table scripts saved to {output_sql_path}")
+
+def generate_pyspark_scripts(mapping_df, output_pyspark_path):
+    """
+    Generate PySpark scripts for loading data into Delta Tables.
+    """
+    pyspark_scripts = []
+    for _, row in mapping_df.iterrows():
+        table_name = row["Databricks_Table"]
+        source_table = row["SAPBW_Table"]
+        columns = row["Columns"]  # Expected as "col1, col2"
+        
+        # Create PySpark script
+        pyspark_script = f"""
+        # Load data from SAP BW source table
+        df = spark.read.format("jdbc").options(
+            url="<jdbc_url>",
+            dbtable="{source_table}",
+            user="<username>",
+            password="<password>"
+        ).load()
+        
+        # Transform and save data into Delta Table
+        df = df.select({columns})  # Select required columns
+        df.write.format("delta").mode("overwrite").save("/mnt/delta/{table_name}")
+        """
+        pyspark_scripts.append(pyspark_script)
+    
+    # Save to file
+    with open(output_pyspark_path, "w") as f:
+        f.write("\n".join(pyspark_scripts))
+    print(f"PySpark scripts saved to {output_pyspark_path}")
+
+def main():
+    # Step 1: Read the mapping file
+    print("Reading mapping file...")
+    mapping_df = read_mapping_file(MAPPING_FILE)
+    
+    # Step 2: Generate Delta Table SQL scripts
+    print("Generating Delta Table SQL scripts...")
+    generate_delta_table_scripts(mapping_df, OUTPUT_SQL_PATH)
+    
+    # Step 3: Generate PySpark scripts
+    print("Generating PySpark scripts...")
+    generate_pyspark_scripts(mapping_df, OUTPUT_PYSPARK_PATH)
+
+if __name__ == "__main__":
+    main()
