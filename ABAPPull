@@ -1,0 +1,10 @@
+DATA: lv_filename TYPE string VALUE '/path/to/export/bw_metadata.csv',
+      lv_sep TYPE c VALUE ','.
+
+OPEN DATASET lv_filename FOR OUTPUT IN TEXT MODE ENCODING DEFAULT.
+
+LOOP AT lt_infoobjects INTO DATA(ls_infoobject).
+  TRANSFER ls_infoobject-objnm && lv_sep && ls_infoobject-objtype TO lv_filename.
+ENDLOOP.
+
+CLOSE DATASET lv_filename.
