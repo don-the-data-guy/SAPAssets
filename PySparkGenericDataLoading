@@ -1,0 +1,63 @@
+pip install pyspark delta-spark
+
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+from delta.tables import DeltaTable
+
+# Initialize SparkSession
+spark = SparkSession.builder \
+    .appName("Generic Data Loading to Databricks") \
+    .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension") \
+    .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog") \
+    .getOrCreate()
+
+# JDBC Configuration
+jdbc_url = "jdbc:sap://<hostname>:<port>/"
+jdbc_properties = {
+    "user": "<username>",
+    "password": "<password>",
+    "driver": "com.sap.db.jdbc.Driver"
+}
+source_table = "SAPBW.TableName"  # Replace with the actual SAP BW source table
+delta_table_path = "/mnt/delta/sap_bw_table"  # Path in Databricks File System (DBFS)
+
+# Step 1: Extract Data from Source
+print("Extracting data from SAP BW...")
+df = spark.read.format("jdbc") \
+    .option("url", jdbc_url) \
+    .option("dbtable", source_table) \
+    .option("user", jdbc_properties["user"]) \
+    .option("password", jdbc_properties["password"]) \
+    .option("driver", jdbc_properties["driver"]) \
+    .load()
+
+# Step 2: Perform Transformations
+print("Transforming data...")
+# Example Transformation 1: Filter active records
+transformed_df = df.filter(col("status") == "active")
+
+# Example Transformation 2: Rename columns
+transformed_df = transformed_df.withColumnRenamed("old_column", "new_column")
+
+# Example Transformation 3: Add derived columns
+transformed_df = transformed_df.withColumn("derived_column", col("amount") * 1.1)
+
+# Step 3: Write Data to Delta Table
+print(f"Writing data to Delta Table at {delta_table_path}...")
+transformed_df.write.format("delta").mode("overwrite").save(delta_table_path)
+
+# Step 4: Register Delta Table in Databricks (if not already registered)
+if not DeltaTable.isDeltaTable(spark, delta_table_path):
+    print("Registering Delta Table...")
+    spark.sql(f"""
+        CREATE TABLE IF NOT EXISTS sap_bw_table
+        USING DELTA
+        LOCATION '{delta_table_path}'
+    """)
+
+# Step 5: Validate Data in Delta Table
+print("Validating Delta Table data...")
+delta_df = spark.read.format("delta").load(delta_table_path)
+delta_df.show()
+
+print("Data loading and transformation complete!")
